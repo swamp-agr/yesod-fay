@@ -107,17 +107,10 @@ import           System.Directory           (copyFile)
 import           System.Exit                (ExitCode (ExitSuccess))
 import           System.Process             (rawSystem)
 import           Text.Julius                (Javascript (Javascript), julius)
-import           Yesod.Core                 (GHandler, GWidget,
-                                             RenderRoute (..), RepJson, Yesod,
-                                             YesodDispatch (..), addScript,
-                                             addScriptEither, getUrlRender,
-                                             getYesod, lift, lookupPostParam,
-                                             mkYesodSub, parseRoutes,
-                                             toMasterHandler, toWidget, toWidgetHead)
+import           Yesod.Core
 import           Yesod.Form.Jquery          (YesodJquery (..))
-import           Yesod.Handler              (invalidArgs)
-import           Yesod.Json                 (jsonToRepJson)
 import           Yesod.Static
+import           Yesod.Fay.Data
 
 jsMainCall :: Bool -> String -> Builder
 jsMainCall False _ = mempty
@@ -139,7 +132,7 @@ class YesodJquery master => YesodFay master where
     -- > yesodFayCommand render command =
     -- >     case command of
     -- >         GetFib index r = render r $ fibs !! index
-    yesodFayCommand :: CommandHandler master master
+    yesodFayCommand :: CommandHandler master
 
     -- | Where in the routing tree our Fay subsite is located. This is
     -- generally named @FaySiteR@, e.g.:
@@ -164,11 +157,11 @@ class YesodJquery master => YesodFay master where
 -- The first argument to your function is the \"respond\" function: it takes
 -- the extra @Returns@ parameter as well as the actual value to be returned,
 -- and produces the expected result.
-type CommandHandler sub master
+type CommandHandler master
     = forall s.
-      (forall a. Show a => Returns a -> a -> GHandler sub master s)
+      (forall a. Show a => Returns a -> a -> HandlerT master IO s)
    -> Value
-   -> GHandler sub master s
+   -> HandlerT master IO s
 
 -- | A setttings data type for indicating whether the generated Javascript
 -- should contain a copy of the Fay runtime or not.
@@ -189,32 +182,21 @@ yesodFaySettings moduleName = YesodFaySettings moduleName Nothing return Nothing
 updateRuntime :: FilePath -> IO ()
 updateRuntime fp = getRuntime >>= \js -> createTree (directory $ decodeString fp) >> copyFile js fp
 
--- | The Fay subsite.
-data FaySite = FaySite
-
-mkYesodSub "FaySite"
-    [ ClassP ''YesodFay [VarT $ mkName "master"]
-    ] [parseRoutes|
-/ FayCommandR POST
-|]
+instance YesodFay master => YesodSubDispatch FaySite (HandlerT master IO) where
+    yesodSubDispatch = $(mkYesodSubDispatch resourcesFaySite)
 
 -- | To be used from your routing declarations.
 getFaySite :: a -> FaySite
 getFaySite _ = FaySite
 
-postFayCommandR :: YesodFay master => GHandler FaySite master RepJson
+postFayCommandR :: YesodFay master => HandlerT FaySite (HandlerT master IO) Value
 postFayCommandR =
-    toSub $ runCommandHandler yesodFayCommand
+    lift $ runCommandHandler yesodFayCommand
   where
-    toSub :: YesodFay master => GHandler master master a -> GHandler FaySite master a
-    toSub mhandler = do
-        m <- getYesod
-        toMasterHandler id (const m) (fayRoute FayCommandR) mhandler
-
     -- | Run a command handler. This provides server-side responses to Fay queries.
     runCommandHandler :: YesodFay master
-                      => CommandHandler sub master
-                      -> GHandler sub master RepJson
+                      => CommandHandler master
+                      -> HandlerT master IO Value
     runCommandHandler f = do
         mtxt <- lookupPostParam "json"
         case mtxt of
@@ -242,14 +224,14 @@ writeYesodFay = do
         createTree $ directory fp
         writeFile (encodeString fp) content
 
-maybeRequireJQuery :: YesodFay master => Bool -> GWidget sub master ()
+maybeRequireJQuery :: YesodFay master => Bool -> WidgetT master IO ()
 maybeRequireJQuery needJQuery = when needJQuery requireJQuery
 
-requireJQuery :: YesodFay master => GWidget sub master ()
+requireJQuery :: YesodFay master => WidgetT master IO ()
 requireJQuery = do
-    master <- lift getYesod
+    master <- getYesod
     addScriptEither $ urlJqueryJs master
-    render <- lift getUrlRender
+    render <- getUrlRender
     -- FIXME get rid of toLazyText call below
     toWidgetHead [julius|window.yesodFayCommandPath = #{toJSON $ render $ fayRoute FayCommandR};|]
 
