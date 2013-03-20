@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
 -- | Utility functions for using Fay from a Yesod application.
 --
 -- This module is intended to be used from your Yesod application, not from
@@ -73,13 +74,9 @@ module Yesod.Fay
     , YesodJquery (..)
     ) where
 
-import           Control.Applicative        ((<$>))
 import           Control.Monad              (unless, when)
-import           Control.Monad.IO.Class     (liftIO)
-import           Data.Aeson                 (decode, toJSON, Value)
-import           Data.Aeson.Encode          (fromValue)
+import           Data.Aeson                 (decode, toJSON)
 import qualified Data.ByteString.Lazy       as L
-import           Data.Data                  (Data)
 import           Data.Default               (def)
 import           Data.Maybe                 (isNothing)
 import           Data.Monoid                ((<>), mempty)
@@ -90,22 +87,20 @@ import           Data.Text.Encoding         (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
 import           Filesystem                 (createTree, isFile, readTextFile)
-import           Filesystem.Path.CurrentOS  (directory, encodeString, (</>), decodeString)
+import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeString)
 import           Fay                        (compileFile, getRuntime)
-import           Fay.Convert                (readFromFay, showToFay)
+import           Fay.Convert                (showToFay)
 import           Fay.Types                  (CompileConfig(..),
                                              configDirectoryIncludes,
                                              configTypecheck,
                                              configExportRuntime,
-                                             configNaked)
+                                             configNaked, CompileError)
 import           Language.Fay.Yesod         (Returns (Returns))
 import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
-                                             Pred (ClassP), Q, Type (VarT),
-                                             mkName, qAddDependentFile, qRunIO)
+                                             Q,
+                                             qAddDependentFile, qRunIO)
 import           System.Environment         (getEnvironment)
 import           System.Directory           (copyFile)
-import           System.Exit                (ExitCode (ExitSuccess))
-import           System.Process             (rawSystem)
 import           Text.Julius                (Javascript (Javascript), julius)
 import           Yesod.Core
 import           Yesod.Form.Jquery          (YesodJquery (..))
@@ -245,15 +240,18 @@ requireFayRuntime settings = do
         (yfsSeparateRuntime settings)
     case yfsSeparateRuntime settings of
         Nothing -> [| return () |]
-        Just (_,exp) -> do
+        Just (_, exp') -> do
             hash <- qRunIO $ getRuntime >>= fmap base64md5 . L.readFile
-            [| addScript ($(return exp) (StaticRoute ["fay-runtime.js"] [(T.pack hash, "")])) |]
+            [| addScript ($(return exp') (StaticRoute ["fay-runtime.js"] [(T.pack hash, "")])) |]
 
 -- | A function that takes a String giving the Fay module name, and returns an
 -- TH splice that generates a @Widget@.
 type FayFile = String -> Q Exp
 
-compileFayFile fp conf = qRunIO $ do
+compileFayFile :: FilePath
+               -> CompileConfig
+               -> IO (Either CompileError String)
+compileFayFile fp conf = do
     packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
     -- Just "cabal-dev/packages-7.4.1.conf"
     compileFile conf {
@@ -268,7 +266,7 @@ fayFileProd settings = do
     let needJQuery = yfsRequireJQuery settings
     qAddDependentFile fp
     qRunIO writeYesodFay
-    eres <- compileFayFile fp config
+    eres <- qRunIO $ compileFayFile fp config
         { configExportRuntime = exportRuntime
         , configNaked = not exportRuntime
         }
@@ -280,12 +278,12 @@ fayFileProd settings = do
             external <-
                 case yfsExternal settings of
                     Nothing -> return [|Nothing|]
-                    Just (fp, exp) -> do
-                        let name = concat ["faygen-", hash, ".js"]
+                    Just (fp', exp') -> do
+                        let name' = concat ["faygen-", hash, ".js"]
                             hash = base64md5 contents'
                             contents' = TLE.encodeUtf8 $ toLazyText contents
-                        qRunIO $ L.writeFile (concat [fp, "/", name]) contents'
-                        return [| Just ($(return exp), name) |]
+                        qRunIO $ L.writeFile (concat [fp', "/", name']) contents'
+                        return [| Just ($(return exp'), name') |]
 
             [| do
                 maybeRequireJQuery needJQuery
@@ -293,7 +291,7 @@ fayFileProd settings = do
                 case $external of
                     Nothing -> toWidget $ const $ Javascript $ fromText $ pack
                                $(return $ LitE $ StringL $ TL.unpack $ toLazyText contents)
-                    Just (constructor, name) -> addScript $ constructor $ StaticRoute [name] []
+                    Just (constructor, name') -> addScript $ constructor $ StaticRoute [name'] []
                 |]
   where
     name = yfsModuleName settings
