@@ -75,7 +75,7 @@ module Yesod.Fay
     ) where
 
 import           Control.Monad              (unless, when)
-import           Data.Aeson                 (decode, toJSON)
+import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
 import           Data.Default               (def)
 import           Data.Maybe                 (isNothing)
