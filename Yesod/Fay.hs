@@ -70,6 +70,7 @@ module Yesod.Fay
       -- * Subsite
     , FaySite
     , getFaySite
+    , Route (..)
       -- * Reexports
     , YesodJquery (..)
     ) where
