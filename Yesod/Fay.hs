@@ -76,9 +76,13 @@ module Yesod.Fay
     ) where
 
 import           Control.Monad              (unless, when)
+import           Control.Applicative
 import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
+import qualified Data.ByteString.Lazy.UTF8  as BSU
 import           Data.Default               (def)
+import           Data.Digest.Pure.MD5       (md5)
+import           Data.List                  (isPrefixOf)
 import           Data.Maybe                 (isNothing)
 import           Data.Monoid                ((<>), mempty)
 import           Data.Text                  (pack, unpack)
@@ -89,7 +93,7 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
 import           Filesystem                 (createTree, isFile, readTextFile)
 import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeString)
-import           Fay                        (compileFile, getRuntime)
+import           Fay                        (compileFileWithState, CompileState(..), getRuntime)
 import           Fay.Convert                (showToFay)
 import           Fay.Types                  (CompileConfig(..),
                                              configDirectoryIncludes,
@@ -101,7 +105,7 @@ import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
                                              Q,
                                              qAddDependentFile, qRunIO)
 import           System.Environment         (getEnvironment)
-import           System.Directory           (copyFile)
+import           System.Directory
 import           Text.Julius                (Javascript (Javascript), julius)
 import           Yesod.Core
 import           Yesod.Form.Jquery          (YesodJquery (..))
@@ -253,11 +257,48 @@ compileFayFile :: FilePath
                -> CompileConfig
                -> IO (Either CompileError String)
 compileFayFile fp conf = do
-    packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
-    -- Just "cabal-dev/packages-7.4.1.conf"
-    compileFile conf {
-        configPackageConf = packageConf
-      } fp
+  result <- getFileCache fp
+  case result of
+    Right cache -> return (Right cache)
+    Left refreshTo -> do
+      packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
+      result <- compileFileWithState conf {
+          configPackageConf = packageConf
+        } fp
+      case result of
+        Left e -> return (Left e)
+        Right (source,state) -> do
+          let files = stateImported state
+              (fp_hi,fp_o) = refreshTo
+          writeFile fp_hi (unlines (filter ours (map snd files)))
+          writeFile fp_o source
+          return (Right source)
+
+  where ours x = isPrefixOf "fay/" x || isPrefixOf "fay-shared/" x
+
+-- | Return the cached output file of the given source file, if:
+--
+--  1. The source file hasn't changed.
+--  2. Any of the source file's dependencies haven't changed.
+--
+--  Otherwise, return filepaths needed to store meta data and the new cache.
+--
+getFileCache :: FilePath -> IO (Either (FilePath,FilePath) String)
+getFileCache fp = do
+  let dir = "dist/yesod-fay-cache/"
+      guid = show (md5 (BSU.fromString fp))
+      fp_hi = dir ++ guid ++ ".hi"
+      fp_o = dir ++ guid ++ ".o"
+      refresh = return $ Left (fp_hi,fp_o)
+  createDirectoryIfMissing True dir
+  exists <- doesFileExist fp_hi
+  if not exists
+     then refresh
+     else do depModTimes <- readFile fp_hi >>= mapM getModificationTime . (fp :) . lines
+             thisModTime <- getModificationTime fp_o
+             if any (> thisModTime) depModTimes
+                then refresh
+                else fmap Right (readFile fp_o)
 
 -- | Does a full compile of the Fay code via GHC for type checking, and then
 -- embeds the Fay-generated Javascript as a static string. File changes during
@@ -300,7 +341,7 @@ fayFileProd settings = do
     fp = mkfp name
 
 config :: CompileConfig
-config = def { 
+config = def {
       configDirectoryIncludes
         = (Nothing, "fay")
         : (Nothing, "fay-shared")
