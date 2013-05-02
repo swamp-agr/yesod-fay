@@ -36,3 +36,4 @@ library
                      , yesod-static >= 1.1.1.2
                      , pureMD5 >= 2.1.2.1
                      , utf8-string >= 0.3.7
+                     , monad-loops >= 0.3.3.0

@@ -76,6 +76,7 @@ module Yesod.Fay
     ) where
 
 import           Control.Monad              (unless, when)
+import           Control.Monad.Loops        (anyM)
 import           Control.Applicative
 import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
@@ -294,9 +295,10 @@ getFileCache fp = do
   exists <- doesFileExist fp_hi
   if not exists
      then refresh
-     else do depModTimes <- readFile fp_hi >>= mapM getModificationTime . (fp :) . lines
-             thisModTime <- getModificationTime fp_o
-             if any (> thisModTime) depModTimes
+     else do thisModTime <- getModificationTime fp_o
+             modules <- fmap ((fp :) . lines) (readFile fp_hi)
+             changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
+             if changed
                 then refresh
                 else fmap Right (readFile fp_o)
 
