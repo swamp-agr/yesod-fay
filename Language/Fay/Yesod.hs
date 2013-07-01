@@ -41,7 +41,7 @@ toString = T.unpack
 -- | A proxy type for specifying what type a command should return. The final
 -- field for each data constructor in a command datatype should be @Returns@.
 data Returns a = Returns
-    deriving (Show, Read, Data, Typeable)
+    deriving (Eq, Show, Read, Data, Typeable)
 
 -- | Call a command.
 call :: (Returns a -> command)
