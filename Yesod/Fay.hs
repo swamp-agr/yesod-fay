@@ -319,24 +319,25 @@ fayFileProd settings = do
         Right s -> do
             s' <- qRunIO $ yfsPostProcess settings s
             let contents = fromText (pack s') <> jsMainCall (not exportRuntime) name
-            external <-
-                case yfsExternal settings of
-                    Nothing -> return [|Nothing|]
-                    Just (fp', exp') -> do
-                        let name' = concat ["faygen-", hash, ".js"]
-                            hash = base64md5 contents'
-                            contents' = TLE.encodeUtf8 $ toLazyText contents
-                        qRunIO $ L.writeFile (concat [fp', "/", name']) contents'
-                        return [| Just ($(return exp'), name') |]
 
-            [| do
-                maybeRequireJQuery needJQuery
-                $(requireFayRuntime settings)
-                case $external of
-                    Nothing -> toWidget $ const $ Javascript $ fromText $ pack
-                               $(return $ LitE $ StringL $ TL.unpack $ toLazyText contents)
-                    Just (constructor, name') -> addScript $ constructor $ StaticRoute [name'] []
-                |]
+            case yfsExternal settings of
+                Nothing ->
+                    [| do
+                        maybeRequireJQuery needJQuery
+                        $(requireFayRuntime settings)
+                        toWidget $ const $ Javascript $ fromText $ pack
+                          $(return $ LitE $ StringL $ TL.unpack $ toLazyText contents)
+                    |]
+                Just (fp', exp') -> do
+                    let name' = concat ["faygen-", hash, ".js"]
+                        hash = base64md5 contents'
+                        contents' = TLE.encodeUtf8 $ toLazyText contents
+                    qRunIO $ L.writeFile (concat [fp', "/", name']) contents'
+                    [| do
+                        maybeRequireJQuery needJQuery
+                        $(requireFayRuntime settings)
+                        addScript $ $(return exp') $ StaticRoute [pack name'] []
+                        |]
   where
     name = yfsModuleName settings
     exportRuntime = isNothing (yfsSeparateRuntime settings)
