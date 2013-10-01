@@ -265,11 +265,13 @@ compileFayFile fp conf = do
       packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
       result <- compileFileWithState conf {
           configPackageConf = packageConf
+
         } fp
       case result of
         Left e -> return (Left e)
-        Right (source,state) -> do
+        Right (source',state) -> do
           let files = stateImported state
+              source = "\n(function(){\n" ++ source' ++ "\n})();\n"
               (fp_hi,fp_o) = refreshTo
           writeFile fp_hi (unlines (filter ours (map snd files)))
           writeFile fp_o source
