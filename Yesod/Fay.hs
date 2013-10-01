@@ -269,7 +269,7 @@ compileFayFile fp conf = do
         } fp
       case result of
         Left e -> return (Left e)
-        Right (source',state) -> do
+        Right (source',_,state) -> do
           let files = stateImported state
               source = "\n(function(){\n" ++ source' ++ "\n})();\n"
               (fp_hi,fp_o) = refreshTo
@@ -362,6 +362,7 @@ fayFileReload settings = do
         liftIO (compileFayFile (mkfp name) config
                 { configTypecheck = False
                 , configExportRuntime = exportRuntime
+                , configSourceMap = True
                 })
                 >>= \eres -> do
         (case eres of
