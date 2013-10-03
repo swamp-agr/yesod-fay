@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -105,13 +106,15 @@ import           Language.Fay.Yesod         (Returns (Returns))
 import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
                                              Q,
                                              qAddDependentFile, qRunIO)
-import           System.Environment         (getEnvironment)
+import           Control.Exception (IOException,catch)
+import           Prelude hiding (catch)
 import           System.Directory
+import           System.Environment         (getEnvironment)
 import           Text.Julius                (Javascript (Javascript), julius)
 import           Yesod.Core
+import           Yesod.Fay.Data
 import           Yesod.Form.Jquery          (YesodJquery (..))
 import           Yesod.Static
-import           Yesod.Fay.Data
 
 jsMainCall :: Bool -> String -> Builder
 jsMainCall False _ = mempty
@@ -302,7 +305,9 @@ getFileCache fp = do
              changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
              if changed
                 then refresh
-                else fmap Right (readFile fp_o)
+                else catch (fmap Right (readFile fp_o))
+                           (\(_ :: IOException) ->
+                             refresh)
 
 -- | Does a full compile of the Fay code via GHC for type checking, and then
 -- embeds the Fay-generated Javascript as a static string. File changes during
