@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -272,7 +273,11 @@ compileFayFile fp conf = do
         } fp
       case result of
         Left e -> return (Left e)
+#if MIN_VERSION_fay(0,19,0)
         Right (source',_,state) -> do
+#else
+        Right (source',state) -> do
+#endif
           let files = stateImported state
               source = "\n(function(){\n" ++ source' ++ "\n})();\n"
               (fp_hi,fp_o) = refreshTo
@@ -367,7 +372,9 @@ fayFileReload settings = do
         liftIO (compileFayFile (mkfp name) config
                 { configTypecheck = False
                 , configExportRuntime = exportRuntime
+#if MIN_VERSION_fay(0, 19, 0)
                 , configSourceMap = True
+#endif
                 })
                 >>= \eres -> do
         (case eres of
