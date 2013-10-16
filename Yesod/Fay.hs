@@ -273,7 +273,8 @@ compileFayFile fp conf = do
         } fp
       case result of
         Left e -> return (Left e)
-#if MIN_VERSION_fay(0,19,0)
+--NOTE: technically this should be (0,18,0,1), but that's not possible.
+#if MIN_VERSION_fay(0,18,0)
         Right (source',_,state) -> do
 #else
         Right (source',state) -> do
