@@ -90,6 +90,7 @@ import           Data.Maybe                 (isNothing)
 import           Data.Monoid                ((<>), mempty)
 import           Data.Text                  (pack, unpack)
 import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
 import qualified Data.Text.Lazy             as TL
 import           Data.Text.Encoding         (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as TLE
@@ -307,11 +308,11 @@ getFileCache fp = do
   if not exists
      then refresh
      else do thisModTime <- getModificationTime fp_o
-             modules <- fmap ((fp :) . lines) (readFile fp_hi)
+             modules <- fmap ((fp :) . lines . T.unpack) (T.readFile fp_hi)
              changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
              if changed
                 then refresh
-                else catch (fmap Right (readFile fp_o))
+                else catch (fmap (Right . T.unpack) (T.readFile fp_o))
                            (\(_ :: IOException) ->
                              refresh)
 
