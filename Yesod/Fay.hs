@@ -304,17 +304,14 @@ getFileCache fp = do
       fp_o = dir ++ guid ++ ".o"
       refresh = return $ Left (fp_hi,fp_o)
   createDirectoryIfMissing True dir
-  exists <- doesFileExist fp_hi
-  if not exists
-     then refresh
-     else do thisModTime <- getModificationTime fp_o
-             modules <- fmap ((fp :) . lines . T.unpack) (T.readFile fp_hi)
-             changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
-             if changed
-                then refresh
-                else catch (fmap (Right . T.unpack) (T.readFile fp_o))
-                           (\(_ :: IOException) ->
-                             refresh)
+  catch (do thisModTime <- getModificationTime fp_o
+            modules <- fmap ((fp :) . lines . T.unpack) (T.readFile fp_hi)
+            changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
+            if changed
+               then refresh
+               else fmap (Right . T.unpack) (T.readFile fp_o))
+        -- If any IO exceptions occur at this point, just invalidate the cache.
+        (\(_ :: IOException) -> refresh)
 
 -- | Does a full compile of the Fay code via GHC for type checking, and then
 -- embeds the Fay-generated Javascript as a static string. File changes during
