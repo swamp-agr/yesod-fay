@@ -180,10 +180,11 @@ data YesodFaySettings = YesodFaySettings
     -- ^ Note that the server call functions provided for your Fay code require
     -- jQuery to be present. If you disable this option and still use the
     -- provided server call functions, your code will break.
+    , yfsPackages        :: [String]
     }
 
 yesodFaySettings :: String -> YesodFaySettings
-yesodFaySettings moduleName = YesodFaySettings moduleName Nothing return Nothing True
+yesodFaySettings moduleName = YesodFaySettings moduleName Nothing return Nothing True []
 
 updateRuntime :: FilePath -> IO ()
 updateRuntime fp = getRuntime >>= \js -> createTree (directory $ decodeString fp) >> copyFile js fp
@@ -270,7 +271,6 @@ compileFayFile fp conf = do
       packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
       result <- compileFileWithState conf {
           configPackageConf = packageConf
-
         } fp
       case result of
         Left e -> return (Left e)
@@ -323,6 +323,7 @@ fayFileProd settings = do
     qRunIO writeYesodFay
     eres <- qRunIO $ compileFayFile fp config
         { configExportRuntime = exportRuntime
+        , configPackages = packages
         }
     case eres of
         Left e -> error $ "Unable to compile Fay module \"" ++ name ++ "\": " ++ show e
@@ -351,6 +352,7 @@ fayFileProd settings = do
   where
     name = yfsModuleName settings
     exportRuntime = isNothing (yfsSeparateRuntime settings)
+    packages = yfsPackages settings
     fp = mkfp name
 
 config :: CompileConfig
@@ -371,6 +373,7 @@ fayFileReload settings = do
         liftIO (compileFayFile (mkfp name) config
                 { configTypecheck = False
                 , configExportRuntime = exportRuntime
+                , configPackages = packages
 #if MIN_VERSION_fay(0, 19, 0)
                 , configSourceMap = True
 #endif
@@ -385,3 +388,4 @@ fayFileReload settings = do
   where
     name = yfsModuleName settings
     exportRuntime = isNothing (yfsSeparateRuntime settings)
+    packages = yfsPackages settings
