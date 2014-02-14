@@ -83,6 +83,7 @@ import           Control.Applicative
 import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
 import qualified Data.ByteString.Lazy.UTF8  as BSU
+import           Data.Data                  (Data)
 import           Data.Default               (def)
 import           Data.Digest.Pure.MD5       (md5)
 import           Data.List                  (isPrefixOf)
@@ -152,6 +153,13 @@ class YesodJquery master => YesodFay master where
     -- >     fayRoute = FaySiteR
     fayRoute :: Route FaySite -> Route master
 
+    -- | User-defined function specifying how to encode data as json for fay.
+    --
+    --   Most users won't need to define this, the default is @const showToFay@.
+    --   Custom definitions will usually be in terms of 'encodeFay'.
+    fayEncode :: Data a => master -> a -> Maybe Value
+    fayEncode = const showToFay
+
 -- | A function provided by the developer describing how to answer individual
 -- commands from client-side code.
 --
@@ -165,7 +173,7 @@ class YesodJquery master => YesodFay master where
 -- and produces the expected result.
 type CommandHandler master
     = forall s.
-      (forall a. Show a => Returns a -> a -> HandlerT master IO s)
+      (forall a. (Show a, Data a) => Returns a -> a -> HandlerT master IO s)
    -> Value
    -> HandlerT master IO s
 
@@ -196,7 +204,7 @@ instance YesodFay master => YesodSubDispatch FaySite (HandlerT master IO) where
 getFaySite :: a -> FaySite
 getFaySite _ = FaySite
 
-postFayCommandR :: YesodFay master => HandlerT FaySite (HandlerT master IO) Value
+postFayCommandR :: forall master. YesodFay master => HandlerT FaySite (HandlerT master IO) Value
 postFayCommandR =
     lift $ runCommandHandler yesodFayCommand
   where
@@ -213,7 +221,9 @@ postFayCommandR =
                     Nothing -> error $ "Unable to parse input: " ++ show txt
                     Just cmd -> f go cmd
       where
-        go Returns = returnJson . showToFay
+        go Returns value = do
+          master <- getYesod
+          returnJson $ fayEncode master value
 
 langYesodFay :: String
 langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ readTextFile "Language/Fay/Yesod.hs")
