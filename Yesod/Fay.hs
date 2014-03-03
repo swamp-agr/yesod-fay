@@ -223,7 +223,7 @@ postFayCommandR =
       where
         go Returns value = do
           master <- getYesod
-          returnJson $ fayEncode master value
+          returnJson $ fayEncode master value -- FIXME what should we do for Nothing values?
 
 langYesodFay :: String
 langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ readTextFile "Language/Fay/Yesod.hs")
