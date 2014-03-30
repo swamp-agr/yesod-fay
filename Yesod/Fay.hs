@@ -157,7 +157,7 @@ class YesodJquery master => YesodFay master where
     --
     --   Most users won't need to define this, the default is @const showToFay@.
     --   Custom definitions will usually be in terms of 'encodeFay'.
-    fayEncode :: Data a => master -> a -> Maybe Value
+    fayEncode :: (Show a, Data a) => master -> a -> Maybe Value
     fayEncode = const showToFay
 
 -- | A function provided by the developer describing how to answer individual
