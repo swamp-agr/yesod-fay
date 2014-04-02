@@ -192,7 +192,14 @@ data YesodFaySettings = YesodFaySettings
     }
 
 yesodFaySettings :: String -> YesodFaySettings
-yesodFaySettings moduleName = YesodFaySettings moduleName Nothing return Nothing True []
+yesodFaySettings moduleName = YesodFaySettings
+    { yfsModuleName = moduleName
+    , yfsSeparateRuntime = Nothing
+    , yfsPostProcess = return
+    , yfsExternal = Nothing
+    , yfsRequireJQuery = True
+    , yfsPackages = []
+    }
 
 updateRuntime :: FilePath -> IO ()
 updateRuntime fp = getRuntime >>= \js -> createTree (directory $ decodeString fp) >> copyFile js fp
