@@ -198,7 +198,7 @@ yesodFaySettings moduleName = YesodFaySettings
     , yfsPostProcess = return
     , yfsExternal = Nothing
     , yfsRequireJQuery = True
-    , yfsPackages = []
+    , yfsPackages = ["fay-base"]
     }
 
 updateRuntime :: FilePath -> IO ()
