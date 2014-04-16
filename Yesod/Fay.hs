@@ -104,6 +104,7 @@ import           Fay.Types                  (CompileConfig(..),
                                              configDirectoryIncludes,
                                              configTypecheck,
                                              configExportRuntime,
+                                             configPrettyPrint,
                                              CompileError)
 import           Language.Fay.Yesod         (Returns (Returns))
 import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
@@ -394,6 +395,7 @@ fayFileReload settings = do
 #if MIN_VERSION_fay(0, 19, 0)
                 , configSourceMap = True
 #endif
+                , configPrettyPrint = True
                 })
                 >>= \eres -> do
         (case eres of
