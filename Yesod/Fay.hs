@@ -190,6 +190,10 @@ data YesodFaySettings = YesodFaySettings
     -- jQuery to be present. If you disable this option and still use the
     -- provided server call functions, your code will break.
     , yfsPackages        :: [String]
+    , yfsTypecheckDevel  :: Bool
+    -- ^ Perform typechecking when in devel mode?
+    --
+    -- Default: False
     }
 
 yesodFaySettings :: String -> YesodFaySettings
@@ -200,6 +204,7 @@ yesodFaySettings moduleName = YesodFaySettings
     , yfsExternal = Nothing
     , yfsRequireJQuery = True
     , yfsPackages = ["fay-base"]
+    , yfsTypecheckDevel = False
     }
 
 updateRuntime :: FilePath -> IO ()
@@ -389,7 +394,7 @@ fayFileReload settings = do
     qRunIO writeYesodFay
     [|
         liftIO (compileFayFile (mkfp name) config
-                { configTypecheck = False
+                { configTypecheck = typecheckDevel
                 , configExportRuntime = exportRuntime
                 , configPackages = packages
 #if MIN_VERSION_fay(0, 19, 0)
@@ -408,3 +413,4 @@ fayFileReload settings = do
     name = yfsModuleName settings
     exportRuntime = isNothing (yfsSeparateRuntime settings)
     packages = yfsPackages settings
+    typecheckDevel = yfsTypecheckDevel settings
