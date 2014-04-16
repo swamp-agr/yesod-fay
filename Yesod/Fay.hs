@@ -98,7 +98,8 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
 import           Filesystem                 (createTree, isFile, readTextFile)
 import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeString)
-import           Fay                        (compileFileWithState, CompileState(..), getRuntime)
+import           Fay                        (compileFileWithState, CompileState(..), getRuntime,
+                                             showCompileError)
 import           Fay.Convert                (showToFay)
 import           Fay.Types                  (CompileConfig(..),
                                              configDirectoryIncludes,
@@ -349,7 +350,7 @@ fayFileProd settings = do
         , configPackages = packages
         }
     case eres of
-        Left e -> error $ "Unable to compile Fay module \"" ++ name ++ "\": " ++ show e
+        Left e -> throwFayError name e
         Right s -> do
             s' <- qRunIO $ yfsPostProcess settings s
             let contents = fromText (pack s') <> jsMainCall (not exportRuntime) name
@@ -404,7 +405,7 @@ fayFileReload settings = do
                 })
                 >>= \eres -> do
         (case eres of
-              Left e -> error $ "Unable to compile Fay module \"" ++ name ++ "\": " ++ show e
+              Left e -> throwFayError name e
               Right s -> do
                 maybeRequireJQuery needJQuery
                 $(requireFayRuntime settings)
@@ -414,3 +415,8 @@ fayFileReload settings = do
     exportRuntime = isNothing (yfsSeparateRuntime settings)
     packages = yfsPackages settings
     typecheckDevel = yfsTypecheckDevel settings
+
+-- | Throw a fay error.
+throwFayError :: String -> CompileError -> error
+throwFayError name e =
+  error $ "Unable to compile Fay module \"" ++ name ++ "\":\n\n" ++ showCompileError e
