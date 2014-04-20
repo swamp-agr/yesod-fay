@@ -121,13 +121,6 @@ import           Yesod.Fay.Data
 import           Yesod.Form.Jquery          (YesodJquery (..))
 import           Yesod.Static
 
-jsMainCall :: Bool -> String -> Builder
-jsMainCall False _ = mempty
-jsMainCall True mn' =
-    "Fay$$_(" <> mn <> ".main);"
-  where
-    mn = fromText $ T.pack mn'
-
 -- | Type class for applications using Fay.
 --
 -- We depend on @YesodJquery@ since the generated client-side code uses jQuery
@@ -353,7 +346,7 @@ fayFileProd settings = do
         Left e -> throwFayError name e
         Right s -> do
             s' <- qRunIO $ yfsPostProcess settings s
-            let contents = fromText (pack s') <> jsMainCall (not exportRuntime) name
+            let contents = fromText (pack s')
 
             case yfsExternal settings of
                 Nothing ->
@@ -409,7 +402,7 @@ fayFileReload settings = do
               Right s -> do
                 maybeRequireJQuery needJQuery
                 $(requireFayRuntime settings)
-                toWidget (const $ Javascript $ fromText (pack s) <> jsMainCall (not exportRuntime) name))|]
+                toWidget (const $ Javascript $ fromText (pack s)))|]
   where
     name = yfsModuleName settings
     exportRuntime = isNothing (yfsSeparateRuntime settings)
