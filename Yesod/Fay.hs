@@ -84,7 +84,9 @@ import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
 import qualified Data.ByteString.Lazy.UTF8  as BSU
 import           Data.Data                  (Data)
+#if !MIN_VERSION_fay(0,20,0)
 import           Data.Default               (def)
+#endif
 import           Data.Digest.Pure.MD5       (md5)
 import           Data.List                  (isPrefixOf)
 import           Data.Maybe                 (isNothing)
@@ -98,9 +100,22 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
 import           Filesystem                 (createTree, isFile, readTextFile)
 import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeString)
-import           Fay                        (compileFileWithState, CompileState(..), getRuntime,
-                                             showCompileError)
+import           Fay                        (getRuntime, showCompileError)
 import           Fay.Convert                (showToFay)
+#if MIN_VERSION_fay(0,20,0)
+import           Fay                        (Config(..),
+                                             addConfigDirectoryIncludePaths,
+                                             addConfigPackages,
+                                             compileFileWithResult,
+                                             configDirectoryIncludes,
+                                             configTypecheck,
+                                             configExportRuntime,
+                                             configPrettyPrint,
+                                             defaultConfig,
+                                             CompileError)
+import           Fay.Types.CompileResult    (CompileResult (..))
+#else
+import           Fay                        (CompileState(..), compileFileWithState)
 import           Fay.Compiler.Config        (addConfigDirectoryIncludePaths,
                                              addConfigPackages)
 import           Fay.Types                  (CompileConfig(..),
@@ -109,6 +124,7 @@ import           Fay.Types                  (CompileConfig(..),
                                              configExportRuntime,
                                              configPrettyPrint,
                                              CompileError)
+#endif
 import           Language.Fay.Yesod         (Returns (Returns))
 import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
                                              Q,
@@ -280,7 +296,7 @@ requireFayRuntime settings = do
 type FayFile = String -> Q Exp
 
 compileFayFile :: FilePath
-               -> CompileConfig
+               -> Config
                -> IO (Either CompileError String)
 compileFayFile fp conf = do
   result <- getFileCache fp
@@ -288,19 +304,25 @@ compileFayFile fp conf = do
     Right cache -> return (Right cache)
     Left refreshTo -> do
       packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
-      result <- compileFileWithState conf {
-          configPackageConf = packageConf
-        } fp
+      let conf' = conf { configPackageConf = packageConf }
+#if MIN_VERSION_fay(0,20,0)
+      result <- compileFileWithResult conf' fp
+#else
+      result <- compileFileWithState conf' fp
+#endif
       case result of
         Left e -> return (Left e)
 --NOTE: technically this should be (0,18,0,1), but that's not possible.
-#if MIN_VERSION_fay(0,18,0)
-        Right (source',_,state) -> do
+#if MIN_VERSION_fay(0,20,0)
+        Right (CompileResult { resOutput = source', resImported = files }) -> do
 #else
-        Right (source',state) -> do
+#if MIN_VERSION_fay(0,18,0)
+        Right (source',_,CompileState { stateImported = files }) -> do
+#else
+        Right (source',CompileState { stateImported = files }) -> do
 #endif
-          let files = stateImported state
-              source = "\n(function(){\n" ++ source' ++ "\n})();\n"
+#endif
+          let source = "\n(function(){\n" ++ source' ++ "\n})();\n"
               (fp_hi,fp_o) = refreshTo
           writeFile fp_hi (unlines (filter ours (map snd files)))
           writeFile fp_o source
@@ -373,8 +395,13 @@ fayFileProd settings = do
     packages = yfsPackages settings
     fp = mkfp name
 
-config :: CompileConfig
-config = addConfigDirectoryIncludePaths ["fay", "fay-shared"] def
+config :: Config
+config = addConfigDirectoryIncludePaths ["fay", "fay-shared"]
+#if MIN_VERSION_fay(0,20,0)
+    defaultConfig
+#else
+    def
+#endif
 
 -- | Performs no type checking on the Fay code. Each time the widget is
 -- requested, the Fay code will be compiled from scratch to Javascript.
@@ -410,3 +437,7 @@ fayFileReload settings = do
 throwFayError :: String -> CompileError -> error
 throwFayError name e =
   error $ "Unable to compile Fay module \"" ++ name ++ "\":\n\n" ++ showCompileError e
+
+#if !MIN_VERSION_fay(0,20,0)
+type Config = CompileConfig
+#endif
