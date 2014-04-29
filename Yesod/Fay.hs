@@ -101,6 +101,8 @@ import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeStri
 import           Fay                        (compileFileWithState, CompileState(..), getRuntime,
                                              showCompileError)
 import           Fay.Convert                (showToFay)
+import           Fay.Compiler.Config        (addConfigDirectoryIncludePaths,
+                                             addConfigPackages)
 import           Fay.Types                  (CompileConfig(..),
                                              configDirectoryIncludes,
                                              configTypecheck,
@@ -338,10 +340,9 @@ fayFileProd settings = do
     let needJQuery = yfsRequireJQuery settings
     qAddDependentFile fp
     qRunIO writeYesodFay
-    eres <- qRunIO $ compileFayFile fp config
-        { configExportRuntime = exportRuntime
-        , configPackages = packages
-        }
+    eres <- qRunIO $ compileFayFile fp
+                   $ addConfigPackages packages
+                   $ config { configExportRuntime = exportRuntime }
     case eres of
         Left e -> throwFayError name e
         Right s -> do
@@ -373,12 +374,7 @@ fayFileProd settings = do
     fp = mkfp name
 
 config :: CompileConfig
-config = def {
-      configDirectoryIncludes
-        = (Nothing, "fay")
-        : (Nothing, "fay-shared")
-        : configDirectoryIncludes def
-    }
+config = addConfigDirectoryIncludePaths ["fay", "fay-shared"] def
 
 -- | Performs no type checking on the Fay code. Each time the widget is
 -- requested, the Fay code will be compiled from scratch to Javascript.
@@ -387,10 +383,11 @@ fayFileReload settings = do
     let needJQuery = yfsRequireJQuery settings
     qRunIO writeYesodFay
     [|
-        liftIO (compileFayFile (mkfp name) config
+        liftIO (compileFayFile (mkfp name)
+          $ addConfigPackages packages
+          $ config
                 { configTypecheck = typecheckDevel
                 , configExportRuntime = exportRuntime
-                , configPackages = packages
 #if MIN_VERSION_fay(0, 19, 0)
                 , configSourceMap = True
 #endif
