@@ -286,7 +286,7 @@ type FayFile = String -> Q Exp
 
 compileFayFile :: FilePath
                -> CompileConfig
-               -> IO (Either CompileError String)
+               -> IO (Either CompileError (String, [FilePath]))
 compileFayFile fp conf = do
   result <- getFileCache fp
   case result of
@@ -309,7 +309,7 @@ compileFayFile fp conf = do
               (fp_hi,fp_o) = refreshTo
           writeFile fp_hi (unlines (filter ours (map snd files)))
           writeFile fp_o source
-          return (Right source)
+          return (Right (source, map snd files))
 
   where ours x = isPrefixOf "fay/" x || isPrefixOf "fay-shared/" x
 
@@ -320,7 +320,7 @@ compileFayFile fp conf = do
 --
 --  Otherwise, return filepaths needed to store meta data and the new cache.
 --
-getFileCache :: FilePath -> IO (Either (FilePath,FilePath) String)
+getFileCache :: FilePath -> IO (Either (FilePath,FilePath) (String, [FilePath]))
 getFileCache fp = do
   let dir = "dist/yesod-fay-cache/"
       guid = show (md5 (BSU.fromString fp))
@@ -333,7 +333,9 @@ getFileCache fp = do
             changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
             if changed
                then refresh
-               else fmap (Right . T.unpack) (T.readFile fp_o))
+               else do
+                   tsrc <- T.readFile fp_o
+                   return $ Right (T.unpack tsrc, modules))
         -- If any IO exceptions occur at this point, just invalidate the cache.
         (\(_ :: IOException) -> refresh)
 
@@ -351,7 +353,8 @@ fayFileProd settings = do
         }
     case eres of
         Left e -> throwFayError name e
-        Right s -> do
+        Right (s, dependencies) -> do
+            mapM_ qAddDependentFile dependencies
             s' <- qRunIO $ yfsPostProcess settings s
             let contents = fromText (pack s') <> jsMainCall (not exportRuntime) name
 
@@ -406,7 +409,7 @@ fayFileReload settings = do
                 >>= \eres -> do
         (case eres of
               Left e -> throwFayError name e
-              Right s -> do
+              Right (s, _dependencies) -> do
                 maybeRequireJQuery needJQuery
                 $(requireFayRuntime settings)
                 toWidget (const $ Javascript $ fromText (pack s) <> jsMainCall (not exportRuntime) name))|]
