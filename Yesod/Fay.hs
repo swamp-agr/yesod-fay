@@ -126,9 +126,11 @@ import           Fay.Types                  (CompileConfig(..),
                                              CompileError)
 #endif
 import           Language.Fay.Yesod         (Returns (Returns))
-import           Language.Haskell.TH.Syntax (Exp (LitE), Lit (StringL),
+import           Language.Haskell.TH.Syntax (Exp (LitE, AppE, VarE), Lit (StringL, StringPrimL, IntegerL),
                                              Q,
                                              qAddDependentFile, qRunIO)
+import           Data.Text.Encoding (decodeUtf8)
+import           Data.ByteString.Unsafe (unsafePackAddressLen)
 import           Control.Exception (IOException,catch)
 import           Prelude hiding (catch)
 import           System.Directory
@@ -376,8 +378,14 @@ fayFileProd settings = do
                     [| do
                         maybeRequireJQuery needJQuery
                         $(requireFayRuntime settings)
-                        toWidget $ const $ Javascript $ fromText $ pack
-                          $(return $ LitE $ StringL $ TL.unpack $ toLazyText contents)
+                        let bs =
+                                  $(do
+                                      let lt = toLazyText contents
+                                          lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
+                                          strE = LitE $ StringPrimL $ TL.unpack lt
+                                          packer = VarE 'unsafePackAddressLen
+                                      return $ packer `AppE` lenE `AppE` strE)
+                        toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
                     |]
                 Just (fp', exp') -> do
                     let name' = concat ["faygen-", hash, ".js"]
