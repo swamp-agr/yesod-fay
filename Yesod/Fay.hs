@@ -86,6 +86,7 @@ import qualified Data.ByteString.Lazy.UTF8  as BSU
 import           Data.Data                  (Data)
 import           Data.Default               (def)
 import           Data.Digest.Pure.MD5       (md5)
+import           Data.FileEmbed             (bsToExp)
 import           Data.List                  (isPrefixOf)
 import           Data.Maybe                 (isNothing)
 import           Data.Monoid                ((<>), mempty)
@@ -362,13 +363,7 @@ fayFileProd settings = do
                     [| do
                         maybeRequireJQuery needJQuery
                         $(requireFayRuntime settings)
-                        let bs =
-                                  $(do
-                                      let lt = toLazyText contents
-                                          lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
-                                          strE = LitE $ StringPrimL $ TL.unpack lt
-                                          packer = VarE 'unsafePackAddressLen
-                                      return $ packer `AppE` lenE `AppE` strE)
+                        let bs = $(bsToExp $ TL.toStrict $ toLazyText contents)
                         toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
                     |]
                 Just (fp', exp') -> do
