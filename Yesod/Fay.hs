@@ -83,6 +83,7 @@ import           Control.Applicative
 import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
 import qualified Data.ByteString.Lazy.UTF8  as BSU
+import qualified Data.ByteString.Lazy.Char8  as S8
 import           Data.Data                  (Data)
 import           Data.Default               (def)
 import           Data.Digest.Pure.MD5       (md5)
@@ -364,9 +365,9 @@ fayFileProd settings = do
                         $(requireFayRuntime settings)
                         let bs =
                                   $(do
-                                      let lt = toLazyText contents
-                                          lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
-                                          strE = LitE $ StringPrimL $ TL.unpack lt
+                                      let s8 = TLE.encodeUtf8 (toLazyText contents)
+                                          lenE = LitE $ IntegerL $ fromIntegral $ S8.length s8
+                                          strE = LitE $ StringPrimL $ S8.unpack s8
                                           packer = VarE 'unsafePackAddressLen
                                       return $ packer `AppE` lenE `AppE` strE)
                         toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
