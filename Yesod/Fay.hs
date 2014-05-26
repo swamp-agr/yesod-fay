@@ -363,7 +363,7 @@ fayFileProd settings = do
                     [| do
                         maybeRequireJQuery needJQuery
                         $(requireFayRuntime settings)
-                        let bs = $(bsToExp $ TL.toStrict $ toLazyText contents)
+                        let bs = $(bsToExp $ encodeUtf8 $ TL.toStrict $ toLazyText contents)
                         toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
                     |]
                 Just (fp', exp') -> do
