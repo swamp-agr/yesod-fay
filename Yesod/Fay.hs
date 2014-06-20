@@ -366,8 +366,13 @@ fayFileProd settings = do
                         let bs =
                                   $(do
                                       let s8 = TLE.encodeUtf8 (toLazyText contents)
+#if MIN_VERSION_template_haskell(2,8,0)
+                                          lenE = LitE $ IntegerL $ fromIntegral $ L.length s8
+                                          strE = LitE $ StringPrimL $ L.unpack s8
+#else
                                           lenE = LitE $ IntegerL $ fromIntegral $ S8.length s8
                                           strE = LitE $ StringPrimL $ S8.unpack s8
+#endif
                                           packer = VarE 'unsafePackAddressLen
                                       return $ packer `AppE` lenE `AppE` strE)
                         toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
