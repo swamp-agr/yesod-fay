@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -297,39 +299,28 @@ requireFayRuntime settings = do
 -- TH splice that generates a @Widget@.
 type FayFile = String -> Q Exp
 
+-- | Compile a Fay file or return the cached version if no compile is
+-- necessary.
 compileFayFile :: FilePath
                -> Config
-               -> IO (Either CompileError String)
+               -> IO (Either CompileError ([FilePath],String))
 compileFayFile fp conf = do
   result <- getFileCache fp
   case result of
     Right cache -> return (Right cache)
     Left refreshTo -> do
       packageConf <- fmap (lookup "HASKELL_PACKAGE_SANDBOX") getEnvironment
-      let conf' = conf { configPackageConf = packageConf }
-#if MIN_VERSION_fay(0,20,0)
-      result <- compileFileWithResult conf' fp
-#else
-      result <- compileFileWithState conf' fp
-#endif
+      result <- compile conf {configPackageConf = packageConf}
+                        fp
       case result of
         Left e -> return (Left e)
---NOTE: technically this should be (0,18,0,1), but that's not possible.
-#if MIN_VERSION_fay(0,20,0)
-        Right (CompileResult { resOutput = source', resImported = files }) -> do
-#else
-#if MIN_VERSION_fay(0,18,0)
-        Right (source',_,CompileState { stateImported = files }) -> do
-#else
-        Right (source',CompileState { stateImported = files }) -> do
-#endif
-#endif
-          let source = "\n(function(){\n" ++ source' ++ "\n})();\n"
+        Right (sourceAndFiles -> (source',files)) -> do
+          let fps = filter ours files
+              source = "\n(function(){\n" ++ source' ++ "\n})();\n"
               (fp_hi,fp_o) = refreshTo
-          writeFile fp_hi (unlines (filter ours (map snd files)))
+          writeFile fp_hi (unlines fps)
           writeFile fp_o source
-          return (Right source)
-
+          return (Right (fps,source))
   where ours x = isPrefixOf "fay/" x || isPrefixOf "fay-shared/" x
 
 -- | Return the cached output file of the given source file, if:
@@ -339,7 +330,7 @@ compileFayFile fp conf = do
 --
 --  Otherwise, return filepaths needed to store meta data and the new cache.
 --
-getFileCache :: FilePath -> IO (Either (FilePath,FilePath) String)
+getFileCache :: FilePath -> IO (Either (FilePath,FilePath) ([FilePath],String))
 getFileCache fp = do
   let dir = "dist/yesod-fay-cache/"
       guid = show (md5 (BSU.fromString fp))
@@ -352,7 +343,7 @@ getFileCache fp = do
             changed <- anyM (fmap (> thisModTime) . getModificationTime) modules
             if changed
                then refresh
-               else fmap (Right . T.unpack) (T.readFile fp_o))
+               else fmap (Right . (modules,) . T.unpack) (T.readFile fp_o))
         -- If any IO exceptions occur at this point, just invalidate the cache.
         (\(_ :: IOException) -> refresh)
 
@@ -369,7 +360,8 @@ fayFileProd settings = do
                    $ config { configExportRuntime = exportRuntime }
     case eres of
         Left e -> throwFayError name e
-        Right s -> do
+        Right (modules,s) -> do
+            mapM_ qAddDependentFile modules
             s' <- qRunIO $ yfsPostProcess settings s
             let contents = fromText (pack s')
 
@@ -431,7 +423,7 @@ fayFileReload settings = do
                 >>= \eres -> do
         (case eres of
               Left e -> throwFayError name e
-              Right s -> do
+              Right (_,s) -> do
                 maybeRequireJQuery needJQuery
                 $(requireFayRuntime settings)
                 toWidget (const $ Javascript $ fromText (pack s)))|]
@@ -446,6 +438,26 @@ throwFayError :: String -> CompileError -> error
 throwFayError name e =
   error $ "Unable to compile Fay module \"" ++ name ++ "\":\n\n" ++ showCompileError e
 
+
+
+-- Fay cross-version compatible functions
+
 #if !MIN_VERSION_fay(0,20,0)
 type Config = CompileConfig
+#endif
+
+#if MIN_VERSION_fay(0,20,0)
+compile = compileFileWithResult
+#else
+compile = compileFileWithState
+#endif
+
+#if MIN_VERSION_fay(0,20,0)
+sourceAndFiles (source,_,res) = (source,map snd (resImported res))
+#else
+#if MIN_VERSION_fay(0,18,0)
+sourceAndFiles (source,_,state) = (source,map snd (stateImported state))
+#else
+sourceAndFiles (source,state) = (source,map snd (stateImported state))
+#endif
 #endif
