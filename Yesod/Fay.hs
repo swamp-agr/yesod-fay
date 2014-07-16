@@ -114,8 +114,8 @@ import           Fay                        (Config(..),
                                              configExportRuntime,
                                              configPrettyPrint,
                                              defaultConfig,
-                                             CompileError)
-import           Fay.Types.CompileResult    (CompileResult (..))
+                                             CompileError,
+                                             CompileResult (..))
 #else
 import           Fay                        (CompileState(..), compileFileWithState)
 import           Fay.Compiler.Config        (addConfigDirectoryIncludePaths,
@@ -371,12 +371,11 @@ fayFileProd settings = do
                         maybeRequireJQuery needJQuery
                         $(requireFayRuntime settings)
                         let bs =
-                                  $(do
-                                      let lt = toLazyText contents
-                                          lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
-                                          strE = LitE $ StringPrimL $ TL.unpack lt
-                                          packer = VarE 'unsafePackAddressLen
-                                      return $ packer `AppE` lenE `AppE` strE)
+                              $(do let lt = toLazyText contents
+                                       lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
+                                       strE = LitE $ stringPrimL lt
+                                       packer = VarE 'unsafePackAddressLen
+                                   return $ packer `AppE` lenE `AppE` strE)
                         toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
                     |]
                 Just (fp', exp') -> do
@@ -394,6 +393,15 @@ fayFileProd settings = do
     exportRuntime = isNothing (yfsSeparateRuntime settings)
     packages = yfsPackages settings
     fp = mkfp name
+
+-- | A cross GHC version compatible StringPrimL. Its type changed in 7.6:
+-- <https://ghc.haskell.org/trac/ghc/ticket/5877>
+stringPrimL :: TL.Text -> Lit
+#if __GLASGOW_HASKELL__ <= 704
+stringPrimL = StringPrimL . TL.unpack
+#else
+stringPrimL = StringPrimL . L.unpack . TLE.encodeUtf8
+#endif
 
 config :: Config
 config = addConfigDirectoryIncludePaths ["fay", "fay-shared"]
@@ -453,7 +461,7 @@ compile = compileFileWithState
 #endif
 
 #if MIN_VERSION_fay(0,20,0)
-sourceAndFiles (source,_,res) = (source,map snd (resImported res))
+sourceAndFiles res = (resOutput res,map snd (resImported res))
 #else
 #if MIN_VERSION_fay(0,18,0)
 sourceAndFiles (source,_,state) = (source,map snd (stateImported state))
