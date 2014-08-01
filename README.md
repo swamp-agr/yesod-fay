@@ -1,7 +1,7 @@
 yesod-fay
 =========
 
-Utilities for using the [Fay](http://fay-lang.org) Haskell-to-JS compiler with [Yesod](http://www.yesodweb.com).
+Utilities for using the [Fay](https://github.com/faylang/fay/wiki) Haskell-to-JS compiler with [Yesod](http://www.yesodweb.com).
 
 For an example of a Yesod application with Fay integrated, have a look at the `sample/` directory in this repository, or alternatively use the experimental Postgres-Fay (`pf`) application template (select it when running `yesod init` with recent versions of Yesod).
 
