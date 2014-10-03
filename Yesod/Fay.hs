@@ -67,6 +67,8 @@ module Yesod.Fay
       -- * Include Fay programs
     , fayFileProd
     , fayFileReload
+    , fayFileProdWithConfig
+    , fayFileReloadWithConfig
     , FayFile
       -- * Commands
     , CommandHandler
@@ -128,7 +130,7 @@ import           Fay.Types                  (CompileConfig(..),
                                              CompileError)
 #endif
 import           Language.Fay.Yesod         (Returns (Returns))
-import           Language.Haskell.TH.Syntax (Exp (LitE, AppE, VarE), Lit (StringL, StringPrimL, IntegerL),
+import           Language.Haskell.TH.Syntax (Exp (LitE, AppE, VarE), Lit (StringL, StringPrimL, IntegerL), Name,
                                              Q,
                                              qAddDependentFile, qRunIO)
 import           Data.Text.Encoding (decodeUtf8)
@@ -351,11 +353,17 @@ getFileCache fp = do
 -- embeds the Fay-generated Javascript as a static string. File changes during
 -- runtime will not be reflected.
 fayFileProd :: YesodFaySettings -> Q Exp
-fayFileProd settings = do
+fayFileProd = fayFileProdWithConfig id
+
+-- | Like 'fayFileProd', but also takes a function so that the fay
+-- configuration can be modified.
+fayFileProdWithConfig :: (Config -> Config) -> YesodFaySettings -> Q Exp
+fayFileProdWithConfig modifier settings = do
     let needJQuery = yfsRequireJQuery settings
     qAddDependentFile fp
     qRunIO writeYesodFay
     eres <- qRunIO $ compileFayFile fp
+                   $ modifier
                    $ addConfigPackages packages
                    $ config { configExportRuntime = exportRuntime }
     case eres of
@@ -414,11 +422,18 @@ config = addConfigDirectoryIncludePaths ["fay", "fay-shared"]
 -- | Performs no type checking on the Fay code. Each time the widget is
 -- requested, the Fay code will be compiled from scratch to Javascript.
 fayFileReload :: YesodFaySettings -> Q Exp
-fayFileReload settings = do
+fayFileReload = fayFileReloadWithConfig 'id
+
+-- | Like 'fayFileReload', but also takes the name of a function used
+-- to modify the fay configuration can be modified.  The type of this
+-- function is expected to be @(Config -> Config)@.
+fayFileReloadWithConfig :: Name -> YesodFaySettings -> Q Exp
+fayFileReloadWithConfig modifier settings = do
     let needJQuery = yfsRequireJQuery settings
     qRunIO writeYesodFay
     [|
         liftIO (compileFayFile (mkfp name)
+          $ $(return $ VarE modifier)
           $ addConfigPackages packages
           $ config
                 { configTypecheck = typecheckDevel
