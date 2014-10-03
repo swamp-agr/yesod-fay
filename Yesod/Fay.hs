@@ -425,8 +425,8 @@ fayFileReload :: YesodFaySettings -> Q Exp
 fayFileReload = fayFileReloadWithConfig 'id
 
 -- | Like 'fayFileReload', but also takes the name of a function used
--- to modify the fay configuration can be modified.  The type of this
--- function is expected to be @(Config -> Config)@.
+-- to modify the fay configuration.  The type of this function is
+-- expected to be @(Config -> Config)@.
 fayFileReloadWithConfig :: Name -> YesodFaySettings -> Q Exp
 fayFileReloadWithConfig modifier settings = do
     let needJQuery = yfsRequireJQuery settings
