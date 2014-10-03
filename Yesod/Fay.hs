@@ -357,6 +357,8 @@ fayFileProd = fayFileProdWithConfig id
 
 -- | Like 'fayFileProd', but also takes a function so that the fay
 -- configuration can be modified.
+--
+-- Since 0.6.1
 fayFileProdWithConfig :: (Config -> Config) -> YesodFaySettings -> Q Exp
 fayFileProdWithConfig modifier settings = do
     let needJQuery = yfsRequireJQuery settings
@@ -427,6 +429,8 @@ fayFileReload = fayFileReloadWithConfig 'id
 -- | Like 'fayFileReload', but also takes the name of a function used
 -- to modify the fay configuration can be modified.  The type of this
 -- function is expected to be @(Config -> Config)@.
+--
+-- Since 0.6.1
 fayFileReloadWithConfig :: Name -> YesodFaySettings -> Q Exp
 fayFileReloadWithConfig modifier settings = do
     let needJQuery = yfsRequireJQuery settings
