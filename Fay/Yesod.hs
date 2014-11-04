@@ -3,7 +3,7 @@
 -- | Module to be shared between server and client.
 --
 -- This module must be valid for both GHC and Fay.
-module Language.Fay.Yesod where
+module Fay.Yesod where
 
 import           Prelude
 #ifdef FAY
@@ -70,4 +70,3 @@ ajaxCommandWithErrorHandling
             -> (Fay ())      -- ^ Failure Handler
             -> Fay ()
 ajaxCommandWithErrorHandling = ffi "jQuery['ajax']({ url: window['yesodFayCommandPath'], type: 'POST', data: { json: JSON.stringify(%1) }, dataType: 'json', success : %2, error: %3})"
-

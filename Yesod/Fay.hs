@@ -20,11 +20,11 @@
 -- containing client-side code, and @fay-shared@ containing code to be used by
 -- both the client and server.
 --
--- The @Language.Fay.Yesod@ module (part of this package) is
+-- The @ay.Yesod@ module (part of this package) is
 -- required by both client and server code. However, since Fay does not
 -- currently have package management support, we use a bit of a hack: the TH
 -- calls in this package will automatically create the necessary
--- @fay\/Language\/Fay\/Yesod.hs@ file.  Ultimately, we will use a more elegant
+-- @fay\/Fay\/Yesod.hs@ file.  Ultimately, we will use a more elegant
 -- solution.
 --
 -- In the future, if this package proves popular enough, Fay support will
@@ -129,7 +129,7 @@ import           Fay.Types                  (CompileConfig(..),
                                              configPrettyPrint,
                                              CompileError)
 #endif
-import           Language.Fay.Yesod         (Returns (Returns))
+import           Fay.Yesod         (Returns (Returns))
 import           Language.Haskell.TH.Syntax (Exp (LitE, AppE, VarE), Lit (StringL, StringPrimL, IntegerL), Name,
                                              Q,
                                              qAddDependentFile, qRunIO)
@@ -257,11 +257,11 @@ postFayCommandR =
           returnJson $ fayEncode master value -- FIXME what should we do for Nothing values?
 
 langYesodFay :: String
-langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ readTextFile "Language/Fay/Yesod.hs")
+langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ readTextFile "Fay/Yesod.hs")
 
 writeYesodFay :: IO ()
 writeYesodFay = do
-    let fp = "fay/Language/Fay/Yesod.hs"
+    let fp = "fay/Fay/Yesod.hs"
         content = "-- NOTE: This file is auto-generated.\n" ++ langYesodFay
     exists <- isFile fp
     mcurrent <-

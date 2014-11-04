@@ -13,7 +13,7 @@ cabal-version:       >=1.8
 
 library
   exposed-modules:     Yesod.Fay
-                       Language.Fay.Yesod
+                       Fay.Yesod
   other-modules:       Yesod.Fay.Data
   build-depends:       base >= 4 && < 5
                      , fay  >= 0.16
