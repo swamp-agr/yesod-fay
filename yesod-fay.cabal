@@ -16,7 +16,7 @@ library
                        Fay.Yesod
   other-modules:       Yesod.Fay.Data
   build-depends:       base >= 4 && < 5
-                     , fay  >= 0.16
+                     , fay >= 0.21.2.1
                      , fay-text
                      , transformers >= 0.2
                      , aeson >= 0.6
