@@ -318,7 +318,8 @@ compileFayFile fp conf = do
         Left e -> return (Left e)
         Right (sourceAndFiles -> (source',files)) -> do
           let fps = filter ours files
-              source = "\n(function(){\n" ++ source' ++ "\n})();\n"
+              source | configExportRuntime conf = "\n(function(){\n" ++ source' ++ "\n})();\n"
+                     | otherwise = source'
               (fp_hi,fp_o) = refreshTo
           writeFile fp_hi (unlines fps)
           writeFile fp_o source
