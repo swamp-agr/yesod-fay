@@ -381,13 +381,14 @@ fayFileProdWithConfig modifier settings = do
                     [| do
                         maybeRequireJQuery needJQuery
                         $(requireFayRuntime settings)
-                        let bs =
+                        -- Optimization, broken by update, but not required.
+                        {-let bs =
                               $(do let lt = toLazyText contents
                                        lenE = LitE $ IntegerL $ fromIntegral $ TL.length lt
                                        strE = LitE $ stringPrimL lt
                                        packer = VarE 'unsafePackAddressLen
-                                   return $ packer `AppE` lenE `AppE` strE)
-                        toWidget $ const $ Javascript $ fromText $ decodeUtf8 bs
+                                   return $ packer `AppE` lenE `AppE` strE)-}
+                        toWidget $ const $ Javascript $ s'
                     |]
                 Just (fp', exp') -> do
                     let name' = concat ["faygen-", hash, ".js"]
