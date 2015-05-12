@@ -102,8 +102,8 @@ import qualified Data.Text.Lazy             as TL
 import           Data.Text.Encoding         (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
-import           Filesystem                 (createTree, isFile, readTextFile)
-import           Filesystem.Path.CurrentOS  (directory, encodeString, decodeString)
+import           System.Directory           (createDirectoryIfMissing, doesFileExist)
+import           System.FilePath            (takeDirectory)
 import           Fay                        (getRuntime, showCompileError)
 import           Fay.Convert                (showToFay)
 #if MIN_VERSION_fay(0,20,0)
@@ -226,7 +226,7 @@ yesodFaySettings moduleName = YesodFaySettings
     }
 
 updateRuntime :: FilePath -> IO ()
-updateRuntime fp = getRuntime >>= \js -> createTree (directory $ decodeString fp) >> copyFile js fp
+updateRuntime fp = getRuntime >>= \js -> createDirectoryIfMissing True (takeDirectory fp) >> copyFile js fp
 
 instance YesodFay master => YesodSubDispatch FaySite (HandlerT master IO) where
     yesodSubDispatch = $(mkYesodSubDispatch resourcesFaySite)
@@ -257,20 +257,20 @@ postFayCommandR =
           returnJson $ fayEncode master value -- FIXME what should we do for Nothing values?
 
 langYesodFay :: String
-langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ readTextFile "Fay/Yesod.hs")
+langYesodFay = $(qRunIO $ fmap (LitE . StringL . unpack) $ T.readFile "Fay/Yesod.hs")
 
 writeYesodFay :: IO ()
 writeYesodFay = do
     let fp = "fay/Fay/Yesod.hs"
         content = "-- NOTE: This file is auto-generated.\n" ++ langYesodFay
-    exists <- isFile fp
+    exists <- doesFileExist fp
     mcurrent <-
         if exists
-            then fmap (Just . unpack) $ readTextFile fp
+            then fmap (Just . unpack) $ T.readFile fp
             else return Nothing
     unless (mcurrent == Just content) $ do
-        createTree $ directory fp
-        writeFile (encodeString fp) content
+        createDirectoryIfMissing True $ takeDirectory fp
+        writeFile fp content
 
 maybeRequireJQuery :: YesodFay master => Bool -> WidgetT master IO ()
 maybeRequireJQuery needJQuery = when needJQuery requireJQuery
