@@ -2,6 +2,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -104,7 +105,7 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import           Data.Text.Lazy.Builder     (fromText, toLazyText, Builder)
 import           System.Directory           (createDirectoryIfMissing, doesFileExist)
 import           System.FilePath            (takeDirectory)
-import           Fay                        (getRuntime, showCompileError)
+import           Fay                        (readConfigRuntime, defaultConfig, showCompileError)
 import           Fay.Convert                (showToFay)
 #if MIN_VERSION_fay(0,20,0)
 import           Fay                        (Config(..),
@@ -225,8 +226,13 @@ yesodFaySettings moduleName = YesodFaySettings
     , yfsTypecheckDevel = False
     }
 
+-- | read runtime from default Fay config
+getRuntime :: IO String
+getRuntime = readConfigRuntime defaultConfig
+
 updateRuntime :: FilePath -> IO ()
-updateRuntime fp = getRuntime >>= \js -> createDirectoryIfMissing True (takeDirectory fp) >> copyFile js fp
+updateRuntime fp = getRuntime >>= \js ->
+  createDirectoryIfMissing True (takeDirectory fp) >> copyFile js fp
 
 instance YesodFay master => YesodSubDispatch FaySite (HandlerT master IO) where
     yesodSubDispatch = $(mkYesodSubDispatch resourcesFaySite)
