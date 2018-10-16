@@ -87,6 +87,7 @@ import           Control.Monad.Loops        (anyM)
 import           Control.Applicative
 import           Data.Aeson                 (decode)
 import qualified Data.ByteString.Lazy       as L
+import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.ByteString.Lazy.UTF8  as BSU
 import           Data.Data                  (Data)
 #if !MIN_VERSION_fay(0,20,0)
@@ -193,9 +194,9 @@ class YesodJquery master => YesodFay master where
 -- and produces the expected result.
 type CommandHandler master
     = forall s.
-      (forall a. (Data a) => Returns a -> a -> HandlerT master IO s)
+      (forall a. (Data a) => Returns a -> a -> HandlerFor master s)
    -> Value
-   -> HandlerT master IO s
+   -> HandlerFor master s
 
 -- | A setttings data type for indicating whether the generated Javascript
 -- should contain a copy of the Fay runtime or not.
@@ -226,29 +227,29 @@ yesodFaySettings moduleName = YesodFaySettings
     , yfsTypecheckDevel = False
     }
 
--- | read runtime from default Fay config
-getRuntime :: IO String
-getRuntime = readConfigRuntime defaultConfig
+-- | Read runtime from default Fay config.
+getRuntime :: IO L.ByteString
+getRuntime = readConfigRuntime defaultConfig >>= return . LC.pack
 
 updateRuntime :: FilePath -> IO ()
 updateRuntime fp = getRuntime >>= \js ->
-  createDirectoryIfMissing True (takeDirectory fp) >> copyFile js fp
+  createDirectoryIfMissing True (takeDirectory fp) >> L.writeFile fp js
 
-instance YesodFay master => YesodSubDispatch FaySite (HandlerT master IO) where
+instance YesodFay master => YesodSubDispatch FaySite master where
     yesodSubDispatch = $(mkYesodSubDispatch resourcesFaySite)
 
 -- | To be used from your routing declarations.
 getFaySite :: a -> FaySite
 getFaySite _ = FaySite
 
-postFayCommandR :: forall master. YesodFay master => HandlerT FaySite (HandlerT master IO) Value
+postFayCommandR :: forall master. YesodFay master => SubHandlerFor FaySite master Value
 postFayCommandR =
-    lift $ runCommandHandler yesodFayCommand
+    liftHandler $ runCommandHandler yesodFayCommand
   where
     -- | Run a command handler. This provides server-side responses to Fay queries.
     runCommandHandler :: YesodFay master
                       => CommandHandler master
-                      -> HandlerT master IO Value
+                      -> HandlerFor master Value
     runCommandHandler f = do
         mtxt <- lookupPostParam "json"
         case mtxt of
@@ -278,10 +279,10 @@ writeYesodFay = do
         createDirectoryIfMissing True $ takeDirectory fp
         writeFile fp content
 
-maybeRequireJQuery :: YesodFay master => Bool -> WidgetT master IO ()
+maybeRequireJQuery :: YesodFay master => Bool -> WidgetFor master ()
 maybeRequireJQuery needJQuery = when needJQuery requireJQuery
 
-requireJQuery :: YesodFay master => WidgetT master IO ()
+requireJQuery :: YesodFay master => WidgetFor master ()
 requireJQuery = do
     master <- getYesod
     addScriptEither $ urlJqueryJs master
@@ -300,7 +301,7 @@ requireFayRuntime settings = do
     case yfsSeparateRuntime settings of
         Nothing -> [| return () |]
         Just (_, exp') -> do
-            hash <- qRunIO $ getRuntime >>= fmap base64md5 . L.readFile
+            hash <- qRunIO $ getRuntime >>= return . base64md5
             [| addScript ($(return exp') (StaticRoute ["fay-runtime.js"] [(T.pack hash, "")])) |]
 
 -- | A function that takes a String giving the Fay module name, and returns an
